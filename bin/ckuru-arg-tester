@@ -1,0 +1,15 @@
+#!/usr/bin/env ruby
+
+['ckuru-tools'].each do |lib|
+  require File.expand_path(File.join(File.dirname(__FILE__), '..', 'lib', lib))
+end	
+
+require 'ruby-debug'
+
+emacs_trace do 
+  response = CkuruTools::ArgsProcessor.new(:args => ["-flag","value","Required_value+"]).parse
+  puts response.inspect
+
+end
+
+# EOF
