@@ -64,7 +64,7 @@ unless defined? CkuruTools
     #
     
     class HashInitializerClass
-      def initialize(h)
+      def initialize(h={})
         h.keys.each do |k|
           self.send("#{k}=",h[k])
         end
