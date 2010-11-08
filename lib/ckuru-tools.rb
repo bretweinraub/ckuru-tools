@@ -7,7 +7,6 @@ unless defined? CkuruTools
   module CkuruTools
 
     # :stopdoc:
-    VERSION = '1.0.0'
     LIBPATH = ::File.expand_path(::File.dirname(__FILE__)) + ::File::SEPARATOR
     PATH = ::File.dirname(LIBPATH) + ::File::SEPARATOR
     # :startdoc:
@@ -65,6 +64,7 @@ unless defined? CkuruTools
     
     class HashInitializerClass
       def initialize(h={})
+        raise ArgumentError.new("argument to #{self.class}##{current_method} must be of class Hash") unless h.is_a? Hash
         h.keys.each do |k|
           self.send("#{k}=",h[k])
         end
@@ -78,17 +78,20 @@ unless defined? CkuruTools
   CkuruTools.require_all_libs_relative_to __FILE__
   CkuruTools.require_all_libs_relative_to CkuruTools.libpath
 
+  class Array
+    def to_comma_separated_string
+      ret = ''
+      self.each do |elem|
+        ret += ',' if ret.length > 0
+        ret += elem.to_s
+      end
+      ret
+    end
+  end
+
   class Object
 
     def _require ; each {|r| require r } ; end
-
-#     def to_hash
-#       ret = Hash.new
-#       each do |elem|
-#         ret[elem] = true
-#       end
-#       ret
-#     end
 
     def docmd(cmd,dir=nil)
       ret = docmdi(cmd,dir)
