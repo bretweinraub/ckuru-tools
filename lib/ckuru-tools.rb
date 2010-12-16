@@ -78,6 +78,26 @@ unless defined? CkuruTools
   CkuruTools.require_all_libs_relative_to __FILE__
   CkuruTools.require_all_libs_relative_to CkuruTools.libpath
 
+  #
+  # class Foo < ActiveRecord::Base
+  # end
+  # 
+  # Foo.inherits_from? ActiveRecord::Base      
+  # => true
+  # 
+  class Class
+    def inherits_from?(klass)
+      raise ArgumentError.new("argument must be of type Class") unless klass.is_a? Class
+      if klass == self
+        true
+      elsif self.superclass.is_a? Class
+        self.superclass.inherits_from? klass
+      else
+        false
+      end
+    end
+  end
+
   class Array
     def to_comma_separated_string
       ret = ''
