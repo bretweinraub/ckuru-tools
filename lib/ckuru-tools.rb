@@ -4,6 +4,26 @@
 # Used to prevent the class/module from being loaded more than once
 unless defined? CkuruTools
 
+  class Module
+    def instance_of_class_accessor( klass, *symbols )
+      symbols.each do |symbol|
+        module_eval( "def #{symbol}() @#{symbol}; end" )
+        module_eval( "def #{symbol}=(val) raise ArgumentError.new('#{symbol} must be a #{klass}') unless val.class.inherits_from? #{klass} ; @#{symbol} = val; end" )
+      end
+    end
+    def class_accessor( klass, *symbols )
+      symbols.each do |symbol|
+        module_eval( "def #{symbol}() @#{symbol}; end" )
+        module_eval( "
+def #{symbol}=(val) 
+  raise ArgumentError.new('argument to #{symbol} must be a class') unless val.is_a? Class
+  raise ArgumentError.new('#{symbol} must be a #{klass}') unless val.inherits_from? #{klass} 
+  @#{symbol} = val
+end" )
+      end
+    end
+  end
+
   module CkuruTools
 
     # :stopdoc:
@@ -110,6 +130,10 @@ unless defined? CkuruTools
   end
 
   class Object
+    # see if this object's class inherits from another class
+    def instance_inherits_from?(klass)
+      self.class.inherits_from?(klass)
+    end
 
     def _require ; each {|r| require r } ; end
 
