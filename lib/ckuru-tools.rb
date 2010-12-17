@@ -6,6 +6,7 @@ unless defined? CkuruTools
 
   class Module
     def instance_of_class_accessor( klass, *symbols )
+
       symbols.each do |symbol|
         module_eval( "def #{symbol}() @#{symbol}; end" )
         module_eval( "def #{symbol}=(val) raise ArgumentError.new('#{symbol} must be a #{klass}') unless val.class.inherits_from? #{klass} ; @#{symbol} = val; end" )
@@ -22,9 +23,32 @@ def #{symbol}=(val)
 end" )
       end
     end
+
+      # raise ArgumentError.new("assignment must be of class CkuruTools::TypedArray, not \#{arr.class}") unless arr.instance_inherits_from? CkuruTools::TypedArray 
+      # raise ArgumentError.new("TypedArray must require #{klass}") unless arr.required_type == #{klass}
+    def typed_array_accessor(klass,*symbols)
+      symbols.each do |symbol|
+        module_eval( "def #{symbol}() @#{symbol}; end" )
+        module_eval <<"EOF"
+    def #{symbol}=(arr)
+      @#{symbol} = CkuruTools::TypedArray.new(#{klass})
+      arr.each do |elem|
+        @#{symbol}.push elem
+      end
+      @#{symbol}
+    end
+EOF
+      end
+    end
   end
 
   module CkuruTools
+
+    def self.class_space
+      ret = TypedArray.new(Class)
+      ObjectSpace.each_object {|x| ret.push(x) if x.is_a? Class}
+      ret.uniq
+    end
 
     # :stopdoc:
     LIBPATH = ::File.expand_path(::File.dirname(__FILE__)) + ::File::SEPARATOR
@@ -83,6 +107,87 @@ end" )
     #
     
     class HashInitializerClass
+      # check for required attributes
+      def required_attributes(*symbols)
+        symbols.each do |symbol|
+          raise ArgumentError.new("attribute :#{symbol} must be set in #{self.class}.initialize") if self.send(symbol).nil?
+        end
+      end
+      
+      # parse and return parameters from a hash
+      #
+      #       view = only_these_parameters(h,[:view,{:klass => View,:required => true}])
+      # or
+      #
+      #       view = parameters(h,[:view,{:klass => View,:required => true}])
+
+      def parameters(h,*args)
+        raise ArgumentError.new("argument to #{self.class}##{current_method} must be of class Hash") unless h.is_a? Hash
+        ret = []
+        args.each do |a|
+          name,options = a
+          options = options || {}
+          unless h[:no_recurse]
+            vals = only_these_parameters(
+              options.merge!(:no_recurse => true),
+              [:instance_that_inherits_from, {:instance_of => Class}],
+              [:instance_of, {:instance_of => Class}],
+              [:klass_that_inherits_from, {:instance_of => Class}],
+              [:klass_of, {:instance_of => Class}],
+              [:no_recurse, {:instance_of => TrueClass}],
+              [:required, {:instance_of => TrueClass}],
+              [:default, {:instance_of => TrueClass}]
+              )
+            instance_that_inherits_from, instance_of, klass_that_inherits_from, klass_of, no_recurse, required, default = vals
+          end
+
+          if val = h[name]
+            if instance_that_inherits_from 
+              unless val.class.inherits_from? instance_that_inherits_from
+                raise ArgumentError.new(
+                  "argument :#{name} to #{self.class}##{calling_method} must be an instance that inherits from #{instance_that_inherits_from}, #{val.class} does not") 
+              end
+            elsif instance_of
+              unless val.class == instance_of
+                raise ArgumentError.new(
+                  "argument :#{name} to #{self.class}##{calling_method} must be an instance of class #{instance_of}, not #{val.class}")
+              end
+            elsif klass_that_inherits_from
+              unless val.inherits_from? klass
+                raise ArgumentError.new("argument :#{name} to #{self.class}##{calling_method} must inherits from class #{klass_that_inherits_from}, #{val} does not") 
+              end
+            elsif klass_of
+              unless val == klass              
+                raise ArgumentError.new("argument :#{name} to #{self.class}##{calling_method} must be of class #{klass_of}, not #{val}") 
+              end
+            end
+          else
+            if options[:default]
+              val = options[:default]
+            elsif options[:required]
+              raise ArgumentError.new("argument :#{name} to #{self.class}##{calling_method} is required")
+            end
+          end
+          ret.push val
+        end
+        ret
+      end
+
+      # insure that only the defined parameters have been passed to a function
+      def only_these_parameters(h,*args)
+        ret = parameters(h,*args)
+        keys = h.keys
+        args.each do |a|
+          name,options = a
+          keys.delete name
+        end
+        if keys.length > 0
+          raise ArgumentError.new("unknown parameters #{keys.inspect} passed to #{self.class}##{calling_method}")
+        end
+        ret
+      end
+
+
       def initialize(h={})
         raise ArgumentError.new("argument to #{self.class}##{current_method} must be of class Hash") unless h.is_a? Hash
         h.keys.each do |k|
@@ -106,6 +211,12 @@ end" )
   # => true
   # 
   class Class
+
+    # show's live decendants of this class
+    def decendants
+      CkuruTools.class_space.select {|x| x.inherits_from? self and x != self}
+    end
+      
     def inherits_from?(klass)
       raise ArgumentError.new("argument must be of type Class") unless klass.is_a? Class
       if klass == self
@@ -130,6 +241,33 @@ end" )
   end
 
   class Object
+    # this method allows a an 'initialize' method to define itself as a abstract class; yet still run some code. 
+    #
+    # To use effectively place at the last line of an initialize method like so:
+    #
+    #  class DataSource < ::CkuruTools::HashInitializerClass
+    #    def initialize(h={})
+    #      super h
+    #      this_is_an_abstract_constructor_for AuraVisualize::DataSource
+    #    end
+    #  end
+
+    def this_is_an_abstract_constructor_for(klass)
+      unless self.class.superclass.inherits_from? klass # abstract constructor
+        str = ''
+        self.class.decendants.each do |d|
+          str += "#{d}\n"
+        end
+        raise <<"EOF" 
+Do not call method of #{self.class}.#{calling_method} directly, you must instantiate a base class.
+
+Maybe you want one of these?:
+
+#{str}
+EOF
+      end
+    end
+      
     # see if this object's class inherits from another class
     def instance_inherits_from?(klass)
       self.class.inherits_from?(klass)
@@ -234,6 +372,19 @@ end" )
         ""
       end
     end
+
+    def calling_method3
+      if caller[3]
+        if matchdata = caller[3].match(/`(.*?)'/)
+          matchdata[2]
+        else
+          ""
+        end
+      else
+        ""
+      end
+    end
+
 
 
     def calling_method_sig
