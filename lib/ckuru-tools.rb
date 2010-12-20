@@ -44,6 +44,59 @@ EOF
 
   module CkuruTools
 
+    def self.validate_hash_arguments(h,*args)
+      raise ArgumentError.new("argument to #{current_method} must be of class Hash") unless h.is_a? Hash
+      ret = []
+      args.each do |a|
+        name,options = a
+        options = options || {}
+        unless h[:no_recurse]
+          vals = only_these_parameters(
+            options.merge!(:no_recurse => true),
+            [:instance_that_inherits_from, {:instance_of => Class}],
+            [:instance_of, {:instance_of => Class}],
+            [:klass_that_inherits_from, {:instance_of => Class}],
+            [:klass_of, {:instance_of => Class}],
+            [:no_recurse, {:instance_of => TrueClass}],
+            [:required, {:instance_of => TrueClass}],
+            [:default, {:instance_of => TrueClass}]
+            )
+          instance_that_inherits_from, instance_of, klass_that_inherits_from, klass_of, no_recurse, required, default = vals
+        end
+
+        if val = h[name]
+          if instance_that_inherits_from 
+            unless val.class.inherits_from? instance_that_inherits_from
+              raise ArgumentError.new(
+                "argument :#{name} to #{calling_method} must be an instance that inherits from #{instance_that_inherits_from}, #{val.class} does not") 
+            end
+          elsif instance_of
+            unless val.class == instance_of
+              raise ArgumentError.new(
+                "argument :#{name} to #{calling_method} must be an instance of class #{instance_of}, not #{val.class}")
+            end
+          elsif klass_that_inherits_from
+            unless val.inherits_from? klass
+              raise ArgumentError.new("argument :#{name} to #{calling_method} must inherits from class #{klass_that_inherits_from}, #{val} does not") 
+            end
+          elsif klass_of
+            unless val == klass              
+              raise ArgumentError.new("argument :#{name} to #{calling_method} must be of class #{klass_of}, not #{val}") 
+            end
+          end
+        else
+          if options[:default]
+            val = options[:default]
+          elsif options[:required]
+            raise ArgumentError.new("argument :#{name} to #{calling_method} is required")
+          end
+        end
+        ret.push val
+      end
+      ret
+    end
+
+
     def self.class_space
       ret = TypedArray.new(Class)
       ObjectSpace.each_object {|x| ret.push(x) if x.is_a? Class}
