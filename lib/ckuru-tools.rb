@@ -44,9 +44,76 @@ EOF
 
   module CkuruTools
 
+    def self.parameters(h,*args)
+      raise ArgumentError.new("argument to #{self.class}##{current_method} must be of class Hash; you may get this error if you don't call a function with a hash; check the initial call") unless h.is_a? Hash
+      ret = []
+      args.each do |a|
+        name,options = a
+        options = options || {}
+        unless h[:no_recurse]
+          vals = only_these_parameters(
+                                       options.merge!(:no_recurse => true),
+                                       [:instance_that_inherits_from, {:instance_of => Class}],
+                                       [:instance_of, {:instance_of => Class}],
+                                       [:klass_that_inherits_from, {:instance_of => Class}],
+                                       [:klass_of, {:instance_of => Class}],
+                                       [:no_recurse, {:instance_of => TrueClass}],
+                                       [:required, {:instance_of => TrueClass}],
+                                       [:default, {:instance_of => TrueClass}]
+                                       )
+          instance_that_inherits_from, instance_of, klass_that_inherits_from, klass_of, no_recurse, required, default = vals
+        end
+
+        if val = h[name]
+          if instance_that_inherits_from 
+            unless val.class.inherits_from? instance_that_inherits_from
+              raise ArgumentError.new(
+                                      "argument :#{name} to #{self.class}##{calling_method} must be an instance that inherits from #{instance_that_inherits_from}, #{val.class} does not") 
+            end
+          elsif instance_of
+            unless val.class == instance_of
+              raise ArgumentError.new(
+                                      "argument :#{name} to #{self.class}##{calling_method} must be an instance of class #{instance_of}, not #{val.class}")
+            end
+          elsif klass_that_inherits_from
+            unless val.inherits_from? klass_that_inherits_from
+              raise ArgumentError.new("argument :#{name} to #{self.class}##{calling_method} must inherits from class #{klass_that_inherits_from}, #{val} does not") 
+            end
+          elsif klass_of
+            unless val == klass_to
+              raise ArgumentError.new("argument :#{name} to #{self.class}##{calling_method} must be of class #{klass_of}, not #{val}") 
+            end
+          end
+        else
+          if options[:default]
+            val = options[:default]
+          elsif options[:required]
+            raise ArgumentError.new("argument :#{name} to #{self.class}##{calling_method} is required")
+          end
+        end
+        ret.push val
+      end
+      ret
+    end
+
+
+    def self.only_these_parameters(h,*args)
+      ret = parameters(h,*args)
+      keys = h.keys
+      args.each do |a|
+        name,options = a
+        keys.delete name
+      end
+      if keys.length > 0
+        raise ArgumentError.new("unknown parameters #{keys.inspect} passed to #{self.class}##{calling_method}")
+      end
+      ret
+    end
+
     def self.validate_hash_arguments(h,*args)
       raise ArgumentError.new("argument to #{current_method} must be of class Hash") unless h.is_a? Hash
       ret = []
+      _calling_method = calling_method
       args.each do |a|
         name,options = a
         options = options || {}
@@ -68,27 +135,41 @@ EOF
           if instance_that_inherits_from 
             unless val.class.inherits_from? instance_that_inherits_from
               raise ArgumentError.new(
-                "argument :#{name} to #{calling_method} must be an instance that inherits from #{instance_that_inherits_from}, #{val.class} does not") 
+                "argument :#{name} to #{_calling_method} must be an instance that inherits from #{instance_that_inherits_from}, #{val.class} does not") 
             end
           elsif instance_of
-            unless val.class == instance_of
-              raise ArgumentError.new(
-                "argument :#{name} to #{calling_method} must be an instance of class #{instance_of}, not #{val.class}")
+            if instance_of.is_a? Array
+              good = false
+              instance_of.each do |_instance_of|
+                if val.class == _instance_of
+                  good = true
+                  break
+                end
+              end
+              unless good
+                raise ArgumentError.new(
+                  "argument :#{name} to #{_calling_method} must be an instance of class #{instance_of.join(',')}, not #{val.class}")
+              end
+            else
+              unless val.class == instance_of
+                raise ArgumentError.new(
+                  "argument :#{name} to #{_calling_method} must be an instance of class #{instance_of}, not #{val.class}")
+              end
             end
           elsif klass_that_inherits_from
             unless val.inherits_from? klass
-              raise ArgumentError.new("argument :#{name} to #{calling_method} must inherits from class #{klass_that_inherits_from}, #{val} does not") 
+              raise ArgumentError.new("argument :#{name} to #{_calling_method} must inherits from class #{klass_that_inherits_from}, #{val} does not") 
             end
           elsif klass_of
-            unless val == klass              
-              raise ArgumentError.new("argument :#{name} to #{calling_method} must be of class #{klass_of}, not #{val}") 
+            unless val == klass_of
+              raise ArgumentError.new("argument :#{name} to #{_calling_method} must be of class #{klass_of}, not #{val}") 
             end
           end
         else
           if options[:default]
             val = options[:default]
           elsif options[:required]
-            raise ArgumentError.new("argument :#{name} to #{calling_method} is required")
+            raise ArgumentError.new("argument :#{name} to #{_calling_method} is required")
           end
         end
         ret.push val
@@ -175,69 +256,12 @@ EOF
       #       view = parameters(h,[:view,{:klass => View,:required => true}])
 
       def parameters(h,*args)
-        raise ArgumentError.new("argument to #{self.class}##{current_method} must be of class Hash") unless h.is_a? Hash
-        ret = []
-        args.each do |a|
-          name,options = a
-          options = options || {}
-          unless h[:no_recurse]
-            vals = only_these_parameters(
-              options.merge!(:no_recurse => true),
-              [:instance_that_inherits_from, {:instance_of => Class}],
-              [:instance_of, {:instance_of => Class}],
-              [:klass_that_inherits_from, {:instance_of => Class}],
-              [:klass_of, {:instance_of => Class}],
-              [:no_recurse, {:instance_of => TrueClass}],
-              [:required, {:instance_of => TrueClass}],
-              [:default, {:instance_of => TrueClass}]
-              )
-            instance_that_inherits_from, instance_of, klass_that_inherits_from, klass_of, no_recurse, required, default = vals
-          end
-
-          if val = h[name]
-            if instance_that_inherits_from 
-              unless val.class.inherits_from? instance_that_inherits_from
-                raise ArgumentError.new(
-                  "argument :#{name} to #{self.class}##{calling_method} must be an instance that inherits from #{instance_that_inherits_from}, #{val.class} does not") 
-              end
-            elsif instance_of
-              unless val.class == instance_of
-                raise ArgumentError.new(
-                  "argument :#{name} to #{self.class}##{calling_method} must be an instance of class #{instance_of}, not #{val.class}")
-              end
-            elsif klass_that_inherits_from
-              unless val.inherits_from? klass
-                raise ArgumentError.new("argument :#{name} to #{self.class}##{calling_method} must inherits from class #{klass_that_inherits_from}, #{val} does not") 
-              end
-            elsif klass_of
-              unless val == klass              
-                raise ArgumentError.new("argument :#{name} to #{self.class}##{calling_method} must be of class #{klass_of}, not #{val}") 
-              end
-            end
-          else
-            if options[:default]
-              val = options[:default]
-            elsif options[:required]
-              raise ArgumentError.new("argument :#{name} to #{self.class}##{calling_method} is required")
-            end
-          end
-          ret.push val
-        end
-        ret
+        CkuruTools.parameters(h,args)
       end
 
       # insure that only the defined parameters have been passed to a function
       def only_these_parameters(h,*args)
-        ret = parameters(h,*args)
-        keys = h.keys
-        args.each do |a|
-          name,options = a
-          keys.delete name
-        end
-        if keys.length > 0
-          raise ArgumentError.new("unknown parameters #{keys.inspect} passed to #{self.class}##{calling_method}")
-        end
-        ret
+        CkuruTools.only_these_parameters(h,args)
       end
 
 
@@ -399,6 +423,7 @@ EOF
             require 'ruby-debug'
           end
         end
+        raise "sorry ...exiting"
       end
     end
 
