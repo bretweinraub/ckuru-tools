@@ -113,7 +113,6 @@ EOF
     def self.validate_hash_arguments(h,*args)
       raise ArgumentError.new("argument to #{current_method} must be of class Hash") unless h.is_a? Hash
       ret = []
-      _calling_method = calling_method
       args.each do |a|
         name,options = a
         options = options || {}
@@ -135,41 +134,27 @@ EOF
           if instance_that_inherits_from 
             unless val.class.inherits_from? instance_that_inherits_from
               raise ArgumentError.new(
-                "argument :#{name} to #{_calling_method} must be an instance that inherits from #{instance_that_inherits_from}, #{val.class} does not") 
+                "argument :#{name} to #{calling_method} must be an instance that inherits from #{instance_that_inherits_from}, #{val.class} does not") 
             end
           elsif instance_of
-            if instance_of.is_a? Array
-              good = false
-              instance_of.each do |_instance_of|
-                if val.class == _instance_of
-                  good = true
-                  break
-                end
-              end
-              unless good
-                raise ArgumentError.new(
-                  "argument :#{name} to #{_calling_method} must be an instance of class #{instance_of.join(',')}, not #{val.class}")
-              end
-            else
-              unless val.class == instance_of
-                raise ArgumentError.new(
-                  "argument :#{name} to #{_calling_method} must be an instance of class #{instance_of}, not #{val.class}")
-              end
+            unless val.class == instance_of
+              raise ArgumentError.new(
+                "argument :#{name} to #{calling_method} must be an instance of class #{instance_of}, not #{val.class}")
             end
           elsif klass_that_inherits_from
-            unless val.inherits_from? klass
-              raise ArgumentError.new("argument :#{name} to #{_calling_method} must inherits from class #{klass_that_inherits_from}, #{val} does not") 
+            unless val.inherits_from? klass_that_inherits_from
+              raise ArgumentError.new("argument :#{name} to #{calling_method} must inherits from class #{klass_that_inherits_from}, #{val} does not") 
             end
           elsif klass_of
             unless val == klass_of
-              raise ArgumentError.new("argument :#{name} to #{_calling_method} must be of class #{klass_of}, not #{val}") 
+              raise ArgumentError.new("argument :#{name} to #{calling_method} must be of class #{klass_of}, not #{val}") 
             end
           end
         else
           if options[:default]
             val = options[:default]
           elsif options[:required]
-            raise ArgumentError.new("argument :#{name} to #{_calling_method} is required")
+            raise ArgumentError.new("argument :#{name} to #{calling_method} is required")
           end
         end
         ret.push val
