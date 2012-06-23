@@ -9,7 +9,7 @@ unless defined? CkuruTools
 
       symbols.each do |symbol|
         module_eval( "def #{symbol}() @#{symbol}; end" )
-        module_eval( "def #{symbol}=(val) raise ArgumentError.new('#{symbol} must be a #{klass}') unless val.class.inherits_from? #{klass} ; @#{symbol} = val; end" )
+        module_eval( "def #{symbol}=(val) raise ArgumentError.new('#{symbol} must be a #{klass}, not one of ' + val.class.ancestors.to_s) unless val.class.inherits_from? #{klass} ; @#{symbol} = val; self.send(:after_#{symbol}_set) if self.respond_to?(:after_#{symbol}_set); end" )
       end
     end
     def class_accessor( klass, *symbols )
@@ -358,7 +358,7 @@ EOF
         cmd.gsub!(/\"/,"\\\\\\\\\\\"")
         system("bash -c \"#{cmd}\"")
         if $?.exitstatus != 0 
-          print " failed exit code #{$?.exitstatus} "
+          print " ** failed ** exit code #{$?.exitstatus} "
         end
       end
       $?
@@ -470,7 +470,7 @@ end
 
 class Time
   def ckuru_time_string
-    strftime("%m/%d/%Y %H:%M:%S")
+    strftime("%m%d%Y-%H%M%S")
   end
 end
 

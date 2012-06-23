@@ -1,6 +1,6 @@
 spec = Gem::Specification.new do |s|
   s.name = 'ckuru-tools'
-  s.version = '0.0.10'
+  s.version = '0.0.11'
   s.summary = "The infamous ckuru-tools gem.  A miscellaneous grab bag of ruby class extensions, utility classes, etc."
   s.description = %{The infamous ckuru-tools gem.  A miscellaneous grab bag of ruby class extensions, utility classes, etc.}
   s.files = %w{ spec lib tasks bin }.collect {|dir| Dir["./#{dir}/*"]}.flatten + %w{ spec lib tasks bin }.collect {|dir| Dir["./#{dir}/*/*"]}.flatten
